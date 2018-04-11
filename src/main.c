@@ -7,12 +7,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
 struct trans2p
 {
   struct ev_impl * impl;
   struct ev_api api;
   int i2cp_fd;
+  int tunfd;
   bool running;
 };
 
@@ -35,9 +37,9 @@ int main(int argc, char * argv[])
   const char * i2cp_addr;
   int i2cp_port;
 
-  if(argc != 3)
+  if(argc != 4)
   {
-    printf("usage %s i2cp_host i2cp_port\n", argv[0]);
+    printf("usage %s i2cp_host i2cp_port ifname\n", argv[0]);
     return 1;
   }
   i2cp_addr = argv[1];
@@ -56,6 +58,14 @@ int main(int argc, char * argv[])
   api = &t.api;
   t.impl = api->open();
   assert(t.impl);
+  struct tun_param tun;
+  tun.ifname = argv[3];
+  tun.mtu = 1500;
+  assert(inet_pton(AF_INET, "10.55.0.1", &tun.addr) == 1);
+  assert(inet_pton(AF_INET, "255.255.255.0", &tun.netmask) == 1);
+  printf("open tun interface %s\n", tun.ifname);
+  t.tunfd = api->tun(t.impl, tun);
+  if(t.tunfd == -1) return 1;
   while(t.running)
   {
     printf("connecting to %s port %d\n", i2cp_addr, i2cp_port);

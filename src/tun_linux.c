@@ -7,77 +7,91 @@
 #include <fcntl.h>
 #include <stdio.h>
 
-static bool if_settun(int fd, int * if_index)
+static bool if_settun(int fd, const char * ifname, int * if_index)
 {
   struct ifreq r;
   memset(&r, 0, sizeof(struct ifreq));
-  if(ioctl(fd, SIOGIFINDEX, &r) == -1) return false;
-  *if_index = r.ifr_ifindex;
-  if(ioctl(fd, SIOCGIFFLAGS, &r) == -1) return false;
   r.ifr_flags = IFF_TUN;
-  return ioctl(fd, SIOCSIFFLAGS, &r) != -1;
+  strncpy(r.ifr_name, ifname, sizeof(r.ifr_name));
+  if(ioctl(fd, TUNSETIFF, &r) == -1) return false;
+  *if_index = r.ifr_ifindex;
+  return true;
 }
 
-static bool if_setname(int fd, const char * ifname, int if_index)
+static bool if_setaddr(const char * ifname, struct in_addr addr)
 {
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if(fd == -1) return false;
   struct ifreq r;
   memset(&r, 0, sizeof(struct ifreq));
-  r.ifr_ifindex = if_index;
-  if(ioctl(fd, SIOCGIFNAME, &r) == -1) return false;
-  /* name matches desired value already ? */
-  if(!strncmp(r.ifr_name, ifname, sizeof(r.ifr_name))) return true;
-  
-  strncpy(r.ifr_newname, ifname, sizeof(r.ifr_newname));
-  r.ifr_ifindex = 0;
-  return ioctl(fd, SIOCSIFNAME, &r) != -1;
-  
+  strncpy(r.ifr_name, ifname, sizeof(r.ifr_name));
+  struct sockaddr_in * a = (struct sockaddr_in * ) &r.ifr_addr;
+  a->sin_family = AF_INET;
+  memcpy(&a->sin_addr, &addr, sizeof(struct in_addr));
+  bool success = ioctl(fd, SIOCSIFADDR, &r) != -1;
+  close(fd);
+  return success;
 }
 
-static bool if_setmtu(int fd, int mtu, int if_index)
+static bool if_setnetmask(const char * ifname, struct in_addr addr)
 {
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if(fd == -1) return false;
   struct ifreq r;
   memset(&r, 0, sizeof(struct ifreq));
-  r.ifr_ifindex = if_index;
-  r.ifr_mtu = mtu;
-  return ioctl(fd, SIOCSIFMTU, &r) != -1;
+  strncpy(r.ifr_name, ifname, sizeof(r.ifr_name));
+  struct sockaddr_in * a = (struct sockaddr_in * ) &r.ifr_netmask;
+  a->sin_family = AF_INET;
+  memcpy(&a->sin_addr, &addr, sizeof(struct in_addr));
+  bool success = ioctl(fd, SIOCSIFNETMASK, &r) != -1;
+  close(fd);
+  return success;
 }
 
-static bool if_up(int fd, int if_index)
+static bool if_up(const char * ifname)
 {
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if(fd == -1) return false;
   struct ifreq r;
   memset(&r, 0, sizeof(struct ifreq));
-  r.ifr_ifindex = if_index;
-  if(ioctl(fd, SIOCGIFFLAGS, &r) == -1) return false;
-  r.ifr_flags |= IFF_UP;
-  return ioctl(fd, SIOCSIFFLAGS, &r) != -1;
+  strncpy(r.ifr_name, ifname, sizeof(r.ifr_name));
+  if(ioctl(fd, SIOCGIFFLAGS, &r) == -1)
+  {
+    close(fd);
+    return false;
+  }
+  r.ifr_flags |= IFF_UP | IFF_RUNNING;
+  bool success = ioctl(fd, SIOCSIFFLAGS, &r) != -1;
+  close(fd);
+  return success;
 }
 
 int ev_linux_opentun(struct ev_impl * impl, struct tun_param param)
 {
-  int ifindex;
+  int ifindex = -1;
   int fd = -1;
   fd = open("/dev/net/tun", O_RDWR);
   if(fd != -1)
   {
-    if(!if_settun(fd, &ifindex))
+    if(!if_settun(fd, param.ifname, &ifindex))
     {
       perror("if_settun()");
       close(fd);
       return -1;
     }
-    if(!if_setname(fd, param.ifname, ifindex))
+    if(!if_setaddr(param.ifname, param.addr))
     {
-      perror("if_setname()");
+      perror("if_setaddr()");
       close(fd);
       return -1;
     }
-    if(!if_setmtu(fd, param.mtu, ifindex))
+    if(!if_setnetmask(param.ifname, param.netmask))
     {
-      perror("if_setmtu()");
+      perror("if_setnetmask()");
       close(fd);
       return -1;
     }
-    if(!if_up(fd, ifindex))
+    if(!if_up(param.ifname))
     {
       perror("if_up()");
       close(fd);
