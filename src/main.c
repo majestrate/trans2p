@@ -3,6 +3,7 @@
  */
 #include "evloop.h"
 #include "blocking.h"
+#include "i2cp.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,11 +14,45 @@ struct trans2p
 {
   struct ev_impl * impl;
   struct ev_api api;
+  struct ev_event i2cp_ev;
+  struct ev_event tun_ev;
+  struct i2cp_state * i2cp;
   int i2cp_fd;
   int tunfd;
   bool running;
 };
 
+struct handler
+{
+  struct trans2p * t;
+
+  uint8_t * buf;
+  
+  void (*handle)(ssize_t, struct handler *);
+};
+
+void tun_onpacket(ssize_t sz, struct handler * h)
+{
+  if(sz > 0)
+  {
+    uint8_t * pkt = h->buf;
+  }
+}
+
+void i2cp_onread(ssize_t sz, struct handler * h)
+{
+  if(sz > 0)
+  {
+    i2cp_offer(h->t->i2cp, h->buf, sz);
+  }
+}
+
+
+void i2cp_write(void * impl, uint8_t * ptr, uint32_t sz)
+{
+  struct trans2p * t = (struct trans2p * ) impl;
+  write(t->i2cp_fd, ptr, sz);
+}
 
 void mainloop(struct trans2p * t)
 {
@@ -34,6 +69,22 @@ void mainloop(struct trans2p * t)
 
 int main(int argc, char * argv[])
 {
+  uint8_t buf[65536];
+  
+  struct trans2p t;
+
+  struct handler tun_handler = {
+    .t = &t,
+    .buf = buf,
+    .handle = &tun_onpacket
+  };
+  
+  struct handler i2cp_handler = {
+    .t = &t,
+    .buf = buf,
+    .handle = &i2cp_onread,
+  };
+  
   const char * i2cp_addr;
   int i2cp_port;
 
@@ -49,10 +100,8 @@ int main(int argc, char * argv[])
     printf("invalid i2cp port %s\n", argv[2]);
     return 1;
   }
-  
-  struct trans2p t;
+  t.i2cp = i2cp_state_new(&i2cp_write, &t);
   struct ev_api * api;
-  struct ev_event ev;
   assert(ev_init(&t.api));
   t.running = true;
   api = &t.api;
@@ -66,15 +115,18 @@ int main(int argc, char * argv[])
   printf("open tun interface %s\n", tun.ifname);
   t.tunfd = api->tun(t.impl, tun);
   if(t.tunfd == -1) return 1;
+  t.tun_ev.fd = t.tunfd;
+  t.tun_ev.ptr = &tun_handler;
+  t.tun_ev.flags = EV_READ;
   while(t.running)
   {
     printf("connecting to %s port %d\n", i2cp_addr, i2cp_port);
     if(blocking_tcp_connect(i2cp_addr, i2cp_port, &t.i2cp_fd))
     {
-      ev.fd = t.i2cp_fd;
-      ev.ptr = 0;
-      ev.flags = (EV_READ | EV_WRITE);
-      assert(api->add(t.impl, &ev));
+      t.i2cp_ev.fd = t.i2cp_fd;
+      t.i2cp_ev.ptr = &i2cp_handler;
+      t.i2cp_ev.flags = (EV_READ | EV_WRITE);
+      assert(api->add(t.impl, &t.i2cp_ev));
       mainloop(&t);
       api->del(t.impl, t.i2cp_fd);
     }
