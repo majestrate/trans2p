@@ -6,6 +6,14 @@
 #include "impl_kqueue.h"
 #endif
 
+#ifdef __linux__
+#include "tun_linux.h"
+#endif
+
+#ifdef __freebsd__
+#include "tun_bsd.h"
+#endif
+
 #include <string.h>
 
 bool ev_init(struct ev_api * api)
@@ -17,6 +25,7 @@ bool ev_init(struct ev_api * api)
   api->add = ev_epoll_add;
   api->del = ev_epoll_del;
   api->poll = ev_epoll_poll;
+  api->tun = ev_linux_opentun;
   return true;
 #else  
 #ifdef _USE_KQUEUE
@@ -25,6 +34,7 @@ bool ev_init(struct ev_api * api)
   api->add = ev_kqueue_add;
   api->del = ev_kqueue_del;
   api->poll = ev_kqueue_poll;
+  api->tun = ev_bsd_opentun;
   return true;
 #else
   return false;

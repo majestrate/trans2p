@@ -14,7 +14,13 @@ struct ev_event
 
 struct ev_impl;
 
-typedef void(*ev_connect_cb)(int, void *);
+struct tun_param
+{
+  const char * ifname;
+  int mtu;
+  struct in_addr addr;
+  struct in_addr netmask;
+};
 
 struct ev_api
 {
@@ -23,6 +29,7 @@ struct ev_api
   bool (*add)(struct ev_impl *, struct ev_event *);
   void (*del)(struct ev_impl *, int);
   int (*poll)(struct ev_impl *, uint32_t, struct ev_event *);
+  int (*tun)(struct ev_impl *, struct tun_param);
 };
 
 bool ev_init(struct ev_api * api);

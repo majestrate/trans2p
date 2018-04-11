@@ -14,6 +14,9 @@ set(TRANS2P_SRC
   "src/main.c"
   "src/evloop.c"
   "src/impl_epoll.c"
+  "src/tun_linux.c"
+  "src/tun_bsd.c"
+  "src/tun_win32.c"
 )
 
 add_executable(${EXE} ${TRANS2P_SRC})
