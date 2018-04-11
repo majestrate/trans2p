@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 typedef void (*i2cp_buffer_visitor)(uint8_t *, uint32_t, struct i2cp_state *);
 
@@ -78,14 +79,21 @@ bool i2cp_ringbuf_flush(struct i2cp_ringbuf * b, i2cp_buffer_visitor v, struct i
   return true;
 }
 
+void handle_i2cp_setdate(uint8_t * ptr, uint32_t len, struct i2cp_state * st)
+{
+  printf("got set date\n");
+}
+
 bool i2cp_get_handler(uint8_t msgno, i2cp_buffer_visitor * handler)
 {
   switch(msgno)
   {
+  case SETDATE:
+    *handler = &handle_i2cp_setdate;
+    return true;
   default:
     return false;
   }
-  return true;
 }
 
 void i2cp_offer(struct i2cp_state * state, uint8_t * data, ssize_t sz)
@@ -112,6 +120,9 @@ void i2cp_offer(struct i2cp_state * state, uint8_t * data, ssize_t sz)
 
 void i2cp_write_msg(uint8_t * ptr, uint32_t sz, struct i2cp_state * st)
 {
+  assert(st);
+  assert(st->write);
+  assert(st->writeimpl);
   st->write(st->writeimpl, ptr, sz);
 }
 
@@ -143,10 +154,13 @@ void i2cp_read_msg(uint8_t * ptr, uint32_t sz, struct i2cp_state * st)
     else
       printf("i2cp message size missmatch: %d != %d", msglen + 5, sz);
   }
+  else
+    printf("i2cp message too small: %d", sz);
 }
 
 void i2cp_tick(struct i2cp_state * state)
 {
+  assert(state);
   if(state->sentinit)
   {
     i2cp_ringbuf_flush(&state->readbuf, i2cp_read_msg, state);
@@ -170,6 +184,8 @@ void i2cp_tick(struct i2cp_state * state)
 
 struct i2cp_state * i2cp_state_new(i2cp_write_handler h, void * impl)
 {
+  assert(h);
+  assert(impl);
   struct i2cp_state * st = (struct i2cp_state *) malloc(sizeof(struct i2cp_state));
   if(!st) return NULL;
   st->write = h;
@@ -178,4 +194,5 @@ struct i2cp_state * i2cp_state_new(i2cp_write_handler h, void * impl)
   st->readcur.sz = 0;
   i2cp_ringbuf_init(&st->readbuf);
   i2cp_ringbuf_init(&st->writebuf);
+  return st;
 }

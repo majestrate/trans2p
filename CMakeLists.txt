@@ -4,7 +4,7 @@ cmake_policy( VERSION 2.8.12)
 set(EXE trans2p)
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 -g")
 
 include(FindPackageHandleStandardArgs)
 include(GNUInstallDirs)
