@@ -21,6 +21,7 @@ struct trans2p
   int i2cp_fd;
   int tunfd;
   bool running;
+  uint8_t buf[65536];
 };
 
 struct handler
@@ -104,17 +105,15 @@ int main(int argc, char * argv[])
   
   struct trans2p t;
 
-  uint8_t buf[65536];
-  
   struct handler tun_handler = {
     .t = &t,
-    .buf = buf,
+    .buf = t.buf,
     .handle = &tun_onpacket
   };
   
   struct handler i2cp_handler = {
     .t = &t,
-    .buf = buf,
+    .buf = t.buf,
     .handle = &i2cp_onread,
   };
   
