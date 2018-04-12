@@ -1,9 +1,9 @@
 #include "evloop.h"
 #ifdef _USE_EPOLL
-#include "impl_epoll.h"
+#include "evloop_epoll.h"
 #endif
 #ifdef _USE_KQUEUE
-#include "impl_kqueue.h"
+#include "evloop_kqueue.h"
 #endif
 
 #ifdef __linux__
