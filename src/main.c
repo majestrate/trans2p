@@ -52,6 +52,7 @@ void i2cp_onread(ssize_t sz, struct handler * h)
 
 static void i2cp_write(void * impl, uint8_t * ptr, uint32_t sz)
 {
+  printf("i2cp_write %d bytes\n", sz);
   struct trans2p * t = (struct trans2p * ) impl;
   int res = write(t->i2cp_fd, ptr, sz);
   if (res == -1) perror("i2cp_write()");
@@ -65,12 +66,13 @@ void mainloop(struct trans2p * t)
   struct handler * h;
   int res;
   ssize_t count;
+  printf("mainloop\n");
   do
   {
     res = api->poll(impl, 10, &ev);
     if(res == 0)
       i2cp_tick(t->i2cp);
-    else
+    else if(res > 0)
     {
       h = (struct handler *) ev.ptr;
       if(ev.flags & EV_READ)
@@ -84,7 +86,7 @@ void mainloop(struct trans2p * t)
           }
           else if (count == 0)
           {
-          // connection closed
+            // connection closed
             close(ev.fd);
             api->del(impl, ev.fd);
           }
@@ -163,6 +165,7 @@ int main(int argc, char * argv[])
       t.i2cp_ev.ptr = &i2cp_handler;
       t.i2cp_ev.flags = EV_READ;
       assert(api->add(t.impl, &t.i2cp_ev));
+      i2cp_begin(t.i2cp);
       mainloop(&t);
       api->del(t.impl, t.i2cp_fd);
     }

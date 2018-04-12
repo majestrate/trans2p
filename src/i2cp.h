@@ -8,9 +8,20 @@ typedef void (*i2cp_write_handler)(void *, uint8_t *, uint32_t);
 
 struct i2cp_state * i2cp_state_new(i2cp_write_handler h, void * impl);
 
+typedef void (*i2cp_msg_handlerfunc)(uint8_t *, uint32_t, struct i2cp_state *, void *);
+
+void i2cp_set_msghandler(struct i2cp_state * st, uint8_t msgtype, i2cp_msg_handlerfunc h, void * user);
+
+void i2cp_queue_send(struct i2cp_state * st, uint8_t msgtype, uint8_t * ptr, uint32_t sz);
+
+void i2cp_flush_write(struct i2cp_state * state);
+void i2cp_flush_read(struct i2cp_state * state);
+
 void i2cp_offer(struct i2cp_state * state, uint8_t * data , ssize_t sz);
 
-void i2cp_tick(struct i2cp_state * state);
+void i2cp_begin(struct i2cp_state * state);
 
+void i2cp_tick(struct i2cp_state * state);
+               
 
 #endif
