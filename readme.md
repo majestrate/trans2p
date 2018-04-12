@@ -1,6 +1,6 @@
 # trans2p
 
-i2p transparent proxy thingydoo
+i2p ip proxy thingydoo with built in dns resolver doohicky and assorted other crap.
 
 requirements:
 
