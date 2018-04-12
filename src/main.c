@@ -3,7 +3,8 @@
  */
 #include "evloop.h"
 #include "blocking.h"
-#include "i2cp.h"
+#include "i2cp_internal.h"
+#include "i2p_crypto.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,11 +18,13 @@ struct trans2p
   struct ev_api api;
   struct ev_event i2cp_ev;
   struct ev_event tun_ev;
-  struct i2cp_state * i2cp;
+  struct i2cp_state i2cp;
   int i2cp_fd;
   int tunfd;
   bool running;
   uint8_t buf[65536];
+  struct i2p_privkeybuf privkey;
+  struct i2p_dest ourdest;
 };
 
 struct handler
@@ -41,18 +44,37 @@ void tun_onpacket(ssize_t sz, struct handler * h)
   }
 }
 
+
+static void hexdump(uint8_t * ptr, uint32_t sz)
+{
+  uint32_t idx = 0;
+  while(idx < sz)
+  {
+    printf("%02x ", ptr[idx++]);
+    if(idx % 8 == 0) printf("\n");
+  }
+  printf("\n");
+}
+
+
 void i2cp_onread(ssize_t sz, struct handler * h)
 {
   if(sz > 0)
   {
-    i2cp_offer(h->t->i2cp, h->buf, sz);
+    hexdump(h->buf, sz);
+    i2cp_offer(&h->t->i2cp, h->buf, sz);
   }
 }
 
+void onsetdate(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user)
+{
+  struct trans2p * t = user;
+}
 
 static void i2cp_write(void * impl, uint8_t * ptr, uint32_t sz)
 {
   printf("i2cp_write %d bytes\n", sz);
+  hexdump(ptr, sz);
   struct trans2p * t = (struct trans2p * ) impl;
   int res = write(t->i2cp_fd, ptr, sz);
   if (res == -1) perror("i2cp_write()");
@@ -71,7 +93,9 @@ void mainloop(struct trans2p * t)
   {
     res = api->poll(impl, 10, &ev);
     if(res == 0)
-      i2cp_tick(t->i2cp);
+    {
+      i2cp_tick(&t->i2cp);
+    }
     else if(res > 0)
     {
       h = (struct handler *) ev.ptr;
@@ -134,8 +158,8 @@ int main(int argc, char * argv[])
     printf("invalid i2cp port %s\n", argv[2]);
     return 1;
   }
-  t.i2cp = i2cp_state_new(&i2cp_write, &t);
-  assert(t.i2cp);
+  i2p_crypto_init();
+  i2cp_state_init(&t.i2cp, &i2cp_write, &t);
   struct ev_api * api;
   assert(ev_init(&t.api));
   t.running = true;
@@ -157,6 +181,12 @@ int main(int argc, char * argv[])
   */
   while(t.running)
   {
+    printf("generate new identity\n");
+    i2p_keygen(&t.privkey);
+    i2p_privkey_dest(&t.privkey, &t.ourdest);
+    char * buf = (char *) t.buf;
+    i2p_dest_tob32addr(&t.ourdest, buf, sizeof(t.buf));
+    printf("we are %s\n", buf);
     printf("connecting to %s port %d\n", i2cp_addr, i2cp_port);
     if(blocking_tcp_connect(i2cp_addr, i2cp_port, &t.i2cp_fd))
     {
@@ -165,7 +195,7 @@ int main(int argc, char * argv[])
       t.i2cp_ev.ptr = &i2cp_handler;
       t.i2cp_ev.flags = EV_READ;
       assert(api->add(t.impl, &t.i2cp_ev));
-      i2cp_begin(t.i2cp);
+      i2cp_begin(&t.i2cp);
       mainloop(&t);
       api->del(t.impl, t.i2cp_fd);
     }

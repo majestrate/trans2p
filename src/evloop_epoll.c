@@ -55,6 +55,11 @@ int ev_epoll_poll(struct ev_impl * impl, uint32_t ms, struct ev_event * ev)
     event = (struct ev_event *) epv.data.ptr;
     ev->fd = event->fd;
     ev->ptr = event->ptr;
+    ev->flags = 0;
+    if(epv.events & EPOLLIN)
+      ev->flags |= EV_READ;
+    if(epv.events & EPOLLOUT)
+      ev->flags |= EV_WRITE;
   }
   return res;
 }

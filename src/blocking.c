@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 bool blocking_tcp_connect(const char * host, int port, int * fd)
 {
@@ -19,6 +20,12 @@ bool blocking_tcp_connect(const char * host, int port, int * fd)
   if( connect(sockfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1)
   {
     perror("connect()");
+    close(sockfd);
+    return false;
+  }
+  if(fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL, 0) | O_NONBLOCK) == -1)
+  {
+    perror("fcntl()");
     close(sockfd);
     return false;
   }

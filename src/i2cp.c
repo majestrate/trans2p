@@ -1,4 +1,4 @@
-#include "i2cp.h"
+#include "i2cp_internal.h"
 #include "i2cp_msg.h"
 #include "i2p_endian.h"
 #include "version.h"
@@ -6,45 +6,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
-
-typedef void (*i2cp_buffer_visitor)(uint8_t *, uint32_t, struct i2cp_state *);
-
-struct i2cp_msgbuf
-{
-  uint32_t sz;
-  uint8_t buf[65536];
-};
-
-struct i2cp_stringbuf
-{
-  uint8_t data[256];
-};
-
-#define RINGBUF_SZ (128)
-
-struct i2cp_ringbuf
-{
-  uint16_t sz;
-  uint16_t idx;
-  struct i2cp_msgbuf buffs[RINGBUF_SZ];
-};
-
-struct i2cp_msg_handler
-{
-  i2cp_msg_handlerfunc func;
-  void * ptr;
-};
-
-struct i2cp_state
-{
-  bool sentinit;
-  void * writeimpl;
-  struct i2cp_msg_handler handlers[256];
-  i2cp_write_handler write;
-  struct i2cp_msgbuf readcur;
-  struct i2cp_ringbuf readbuf;
-  struct i2cp_ringbuf writebuf;
-};
 
 void i2cp_ringbuf_init(struct i2cp_ringbuf * b)
 {
@@ -59,7 +20,7 @@ bool i2cp_ringbuf_append(struct i2cp_ringbuf * b, uint8_t t, uint8_t * ptr, uint
   {
     b->sz ++;
     b->idx = (b->idx + 1) % RINGBUF_SZ;
-    m->sz = sz;
+    m->sz = sz + 5;
     htobe32buf(m->buf, sz);
     m->buf[4] = t;
     memcpy(m->buf+5, ptr, sz);
@@ -103,15 +64,27 @@ bool i2cp_get_handler(struct i2cp_state * st, uint8_t msgno, struct i2cp_msg_han
 
 void i2cp_offer(struct i2cp_state * state, uint8_t * data, ssize_t sz)
 {
-  if(sz <= 0) return;
- 
+  printf("i2cp_offer %ld\n", sz);
+  if(sz == 0)
+  {
+    i2cp_flush_read(state);
+    return;
+  }
+  if(sz < 0) return;
+
+  if(sizeof(state->readcur.buf) <= state->readcur.sz + sz)
+  {
+    printf("overflow\n");
+    return;
+  }
+  printf("readsz = %d sz = %ld\n", state->readcur.sz, sz);
   memcpy(state->readcur.buf + state->readcur.sz, data, sz);
   state->readcur.sz += sz;
   
 
   if(state->readcur.sz > 4)
   {
-    uint32_t curlen = buf32toh(state->readcur.buf);
+    uint32_t curlen = bufbe32toh(state->readcur.buf);
     if( curlen + 5 >= state->readcur.sz)
     {
       i2cp_ringbuf_append(&state->readbuf, state->readcur.buf[4], state->readcur.buf + 5, curlen);
@@ -140,6 +113,11 @@ void i2cp_putstring(struct i2cp_stringbuf * buf, char * str)
 static inline uint32_t i2cp_strlen(struct i2cp_stringbuf * buf)
 {
   return buf->data[0];
+}
+
+static inline uint32_t i2cp_buflen(struct i2cp_stringbuf * buf)
+{
+  return buf->data[0] + 1;
 }
 
 void i2cp_set_msghandler(struct i2cp_state * st, uint8_t msgtype, i2cp_msg_handlerfunc h, void * user)
@@ -180,7 +158,10 @@ void i2cp_begin(struct i2cp_state * state)
     // get date messagee
     struct i2cp_stringbuf str;
     i2cp_putstring(&str, I2CP_VERSION);
-    uint32_t sz = i2cp_strlen(&str);
+    uint32_t sz = i2cp_buflen(&str);
+    // empty mapping
+    htobe16buf(str.data + sz, 0);
+    sz += 2;
     i2cp_queue_send(state, GETDATE, str.data, sz);
     i2cp_flush_write(state);
     state->sentinit = true;
@@ -208,18 +189,17 @@ void i2cp_flush_read(struct i2cp_state * st)
   i2cp_ringbuf_flush(&st->readbuf, i2cp_read_msg, st);
 }
 
-struct i2cp_state * i2cp_state_new(i2cp_write_handler h, void * impl)
+void i2cp_state_init(struct i2cp_state * st, i2cp_write_handler h, void * impl)
 {
+  assert(st);
   assert(h);
   assert(impl);
-  struct i2cp_state * st = (struct i2cp_state *) malloc(sizeof(struct i2cp_state));
-  if(!st) return NULL;
   st->write = h;
   st->sentinit = false;
   st->writeimpl = impl;
   st->readcur.sz = 0;
+  memset(st->readcur.buf, 0, sizeof(st->readcur.buf));
   i2cp_ringbuf_init(&st->readbuf);
   i2cp_ringbuf_init(&st->writebuf);
   memset(st->handlers, 0, sizeof(st->handlers));
-  return st;
 }

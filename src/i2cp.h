@@ -6,8 +6,6 @@ struct i2cp_state;
 
 typedef void (*i2cp_write_handler)(void *, uint8_t *, uint32_t);
 
-struct i2cp_state * i2cp_state_new(i2cp_write_handler h, void * impl);
-
 typedef void (*i2cp_msg_handlerfunc)(uint8_t *, uint32_t, struct i2cp_state *, void *);
 
 void i2cp_set_msghandler(struct i2cp_state * st, uint8_t msgtype, i2cp_msg_handlerfunc h, void * user);
