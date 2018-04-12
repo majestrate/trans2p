@@ -25,3 +25,7 @@ building:
 using:
 
     ¯\(._.)/¯
+
+status:
+
+it sorta does stuff but not really, it'll get done eventually.
