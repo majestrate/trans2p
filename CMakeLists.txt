@@ -16,7 +16,6 @@ set(TRANS2P_SRC
   "src/main.c"
   "src/evloop.c"
   "src/i2cp.c"
-  "src/base.c"
   "src/evloop_epoll.c"
   "src/tun_linux.c"
   "src/tun_bsd.c"
