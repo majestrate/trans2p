@@ -9,8 +9,19 @@ requirements:
 * libssl (libressl or openssl)
 * cmake
 
+platforms:
+
+* linux x86-64/arm/ppc
+* freebsd x86-64/arm
+* netbsd x86-64
+* windows x64-64 (eventually)
+
 building:
 
     $ mkdir build 
     $ cmake ..
     $ make
+
+using:
+
+    ¯\(._.)/¯
