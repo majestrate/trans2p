@@ -174,7 +174,6 @@ void i2cp_tick(struct i2cp_state * st)
 
 void i2cp_queue_send(struct i2cp_state * st, uint8_t msgtype, uint8_t * ptr, uint32_t sz)
 {
-  printf("i2cp queue send %d\n", sz);
   i2cp_ringbuf_append(&st->writebuf, msgtype, ptr, sz);
 }
 
