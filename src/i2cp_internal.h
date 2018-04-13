@@ -33,6 +33,7 @@ struct i2cp_msg_handler
 struct i2cp_state
 {
   bool sentinit;
+  uint16_t sid;
   void * writeimpl;
   struct i2cp_msg_handler handlers[256];
   i2cp_write_handler write;

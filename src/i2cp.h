@@ -1,6 +1,9 @@
 #ifndef I2CP_H
 #define I2CP_H
 #include "common.h"
+#include "i2p_crypto.h"
+#include <zlib.h>
+
 struct i2cp_state;
 
 
@@ -20,6 +23,22 @@ void i2cp_offer(struct i2cp_state * state, uint8_t * data , ssize_t sz);
 void i2cp_begin(struct i2cp_state * state);
 
 void i2cp_tick(struct i2cp_state * state);
-               
+
+
+struct i2cp_payload
+{
+  z_stream gzip;
+  uint8_t payload[65536];
+  size_t sz;
+  uint8_t proto;
+  uint16_t srcport;
+  uint16_t dstport;
+  uint8_t * ptr;
+  uint32_t ptrlen;
+};
+
+bool i2cp_parse_payload(struct i2cp_payload * p);
+
+void i2cp_send_payload(struct i2cp_state * st, struct i2p_dest * to, struct i2cp_payload * p);
 
 #endif

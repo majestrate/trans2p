@@ -4,8 +4,10 @@
 
 #define CREATESESSION (1)
 #define CREATELS (4)
+#define SENDMSG (5)
 #define SESSIONSTATUS (20)
 #define DISCONNECT (30)
+#define PAYLOAD (31)
 #define GETDATE (32)
 #define SETDATE (33)
 #define REQVARLS (37)

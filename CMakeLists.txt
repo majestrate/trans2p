@@ -10,13 +10,16 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -g -Wall")
 include(FindPackageHandleStandardArgs)
 include(GNUInstallDirs)
 find_package(OpenSSL)
+find_package(ZLIB)
 
 set(TRANS2P_SRC
   "src/blocking.c"
   "src/main.c"
   "src/evloop.c"
   "src/i2cp.c"
+  "src/packet.c"
   "src/evloop_epoll.c"
+  "src/tun.c"
   "src/tun_linux.c"
   "src/tun_bsd.c"
   "src/tun_win32.c"
@@ -29,4 +32,4 @@ set(TRANS2P_SRC
 
 
 add_executable(${EXE} ${TRANS2P_SRC})
-target_link_libraries(${EXE} ${OPENSSL_LIBRARIES})
+target_link_libraries(${EXE} ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES})

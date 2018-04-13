@@ -7,6 +7,9 @@
 #include "i2cp_msg.h"
 #include "i2p_endian.h"
 #include "i2p_crypto.h"
+#include "packet_internal.h"
+#include "tun.h"
+#include "dns_internal.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,30 +24,34 @@ struct trans2p
   struct ev_event i2cp_ev;
   struct ev_event tun_ev;
   struct i2cp_state i2cp;
-  uint16_t sid;
   int i2cp_fd;
-  int tunfd;
   bool running;
-  uint8_t buf[65536];
   struct i2p_privkeybuf privkey;
   struct i2p_dest ourdest;
   struct i2p_elg lskey;
+  struct i2cp_payload payload;
+  struct packet_state pkt;
+  struct dns_state dns;
+  struct tunif tun;
+  uint8_t buf[65536];
 };
 
 struct handler
 {
   struct trans2p * t;
 
-  uint8_t * buf;
+  uint8_t readbuf[1024];
   
-  void (*handle)(ssize_t, struct handler *);
+  void (*read)(ssize_t, struct handler *);  
+  void (*write)(struct handler *);
 };
 
 void tun_onpacket(ssize_t sz, struct handler * h)
 {
-  if(sz > 0)
+  if(sz > 0 && sz < 65536)
   {
-    uint8_t * pkt = h->buf;
+    uint16_t readsz = sz;
+    ringbuf_append(&h->t->tun.read, h->readbuf, readsz);
   }
 }
 
@@ -63,13 +70,14 @@ static void hexdump(uint8_t * ptr, uint32_t sz)
 
 void i2cp_onread(ssize_t sz, struct handler * h)
 {
-  hexdump(h->buf, sz);
-  i2cp_offer(&h->t->i2cp, h->buf, sz); 
+  //hexdump(h->buf, sz);
+  if(sz > 0)
+    i2cp_offer(&h->t->i2cp, h->readbuf, sz); 
 }
 
 void onsessionstatus(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user)
 {
-  struct trans2p * t = user;
+  (void) user;
   uint16_t sid = bufbe16toh(data);
   data += 2;
   switch(*data)
@@ -79,7 +87,7 @@ void onsessionstatus(uint8_t * data, uint32_t sz, struct i2cp_state * st, void *
     return;
   case CREATED:
     printf("session created: %d\n", sid);
-    t->sid = sid;
+    st->sid = sid;
     return;
   case UPDATED:
     printf("session updated: %d\n", sid);
@@ -119,6 +127,42 @@ void onsetdate(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user)
   i2cp_queue_send(st, CREATESESSION, begin, buf - begin);
 }
 
+void onpayload(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user)
+{
+  struct trans2p * t = user;
+  uint8_t * buf = data;
+  // session id
+  uint16_t sid = bufbe16toh(buf);
+  buf += 2;
+  assert(sid == st->sid);
+  // msgid
+  buf += 4;
+  // payload header
+  t->payload.ptrlen = bufbe32toh(buf);
+  if(t->payload.ptrlen > sz)
+  {
+    printf("i2cp payload overflow: %d > %d\n", t->payload.ptrlen, sz);
+    return;
+  }
+  buf += 4;
+  // payload 
+  t->payload.ptr = buf;
+  if(i2cp_parse_payload(&t->payload))
+  {
+    uint16_t ippkt_sz;
+    if(translate_i2cp_to_ip(&t->pkt, &t->payload, t->buf, &ippkt_sz))
+    {
+      ringbuf_append(&t->tun.write, t->buf, ippkt_sz);
+    }
+    else
+      printf("dropping i2cp message, cannot translate\n");
+  }
+  else
+  {
+    printf("invalid i2cp payload\n");
+  }
+}
+
 void onreqvarls(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user)
 {
   struct trans2p * t = user;
@@ -126,9 +170,9 @@ void onreqvarls(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user
   struct i2p_dest * dest = &t->ourdest;
 
   uint16_t sid = bufbe16toh(data);
-  if(sid != t->sid)
+  if(sid != st->sid)
   {
-    printf("i2cp session id missmatch %d != %d\n", sid, t->sid);
+    printf("i2cp session id missmatch %d != %d\n", sid, st->sid);
   }
   
   uint8_t numls = data[2];
@@ -136,7 +180,7 @@ void onreqvarls(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user
   uint8_t * buf = t->buf;
   uint8_t * begin = buf;
   // sid
-  htobe16buf(buf, t->sid);
+  htobe16buf(buf, st->sid);
   buf += 2;
   // 20 bytes revoke
   memset(buf, 0, 20);
@@ -176,6 +220,26 @@ static void i2cp_write(void * impl, uint8_t * ptr, uint32_t sz)
   if (res == -1) perror("i2cp_write()");
 }
 
+void tun_ringbuf_write(uint8_t * ptr, uint16_t sz, void * user)
+{
+  struct tunif * tun = user;
+  write(tun->fd, ptr, sz);
+}
+
+void tun_flushwrite(struct handler * h)
+{
+  struct tunif * tun = &h->t->tun;
+  ringbuf_flush(&tun->write, &tun_ringbuf_write, tun);
+}
+
+void tick(struct trans2p * t)
+{
+  // process ip packets
+  tunif_tick(&t->tun, &t->i2cp, &t->pkt);
+  // process i2cp messages
+  i2cp_tick(&t->i2cp);
+}
+
 void mainloop(struct trans2p * t)
 {
   struct ev_api * api = &t->api;
@@ -183,14 +247,14 @@ void mainloop(struct trans2p * t)
   struct ev_event ev;
   struct handler * h;
   int res;
-  ssize_t count;
+  int count;
   printf("mainloop\n");
   do
   {
     res = api->poll(impl, 10, &ev);
     if(res == 0)
     {
-      i2cp_tick(&t->i2cp);
+      tick(t);
     }
     else if(res > 0)
     {
@@ -199,10 +263,10 @@ void mainloop(struct trans2p * t)
       {
         do
         {
-          count = read(ev.fd, h->buf, 512);
-          if(count > 0)
+          count = read(ev.fd, h->readbuf, sizeof(h->readbuf));
+          if(count > 0 && h->read)
           {
-            h->handle(count, h);
+            h->read(count, h);
           }
           else if (count == 0)
           {
@@ -217,6 +281,11 @@ void mainloop(struct trans2p * t)
         }
         while(count > 0);     
       }
+      if (ev.flags & EV_WRITE)
+      {
+        if(h->write)
+          h->write(h);
+      }
     }
   }
   while(res != -1);
@@ -229,14 +298,14 @@ int main(int argc, char * argv[])
 
   struct handler tun_handler = {
     .t = &t,
-    .buf = t.buf,
-    .handle = &tun_onpacket
+    .read = &tun_onpacket,
+    .write = &tun_flushwrite
   };
   
   struct handler i2cp_handler = {
     .t = &t,
-    .buf = t.buf,
-    .handle = &i2cp_onread,
+    .read = &i2cp_onread,
+    .write = NULL
   };
   
   const char * i2cp_addr;
@@ -260,6 +329,8 @@ int main(int argc, char * argv[])
   i2cp_set_msghandler(&t.i2cp, SETDATE, &onsetdate, &t);
   i2cp_set_msghandler(&t.i2cp, SESSIONSTATUS, &onsessionstatus, &t);
   i2cp_set_msghandler(&t.i2cp, REQVARLS, &onreqvarls, &t);
+  i2cp_set_msghandler(&t.i2cp, PAYLOAD, &onpayload, &t);
+
   
   struct ev_api * api;
   assert(ev_init(&t.api));
@@ -267,19 +338,21 @@ int main(int argc, char * argv[])
   api = &t.api;
   t.impl = api->open();
   assert(t.impl);
-  /*
+  
   struct tun_param tun;
   tun.ifname = argv[3];
   tun.mtu = 1500;
+  // TODO: make configurable
   assert(inet_pton(AF_INET, "10.55.0.1", &tun.addr) == 1);
   assert(inet_pton(AF_INET, "255.255.255.0", &tun.netmask) == 1);
   printf("open tun interface %s\n", tun.ifname);
-  t.tunfd = api->tun(t.impl, tun);
-  if(t.tunfd == -1) return 1;
-  t.tun_ev.fd = t.tunfd;
-  t.tun_ev.ptr = &tun_handler;
-  t.tun_ev.flags = EV_READ;
-  */
+  int tunfd = api->tun(t.impl, tun);
+  if(tunfd == -1) return 1;
+  t.tun.ev.fd = tunfd;
+  t.tun.ev.ptr = &tun_handler;
+  t.tun.ev.flags = EV_READ | EV_WRITE;
+  api->add(t.impl,  &t.tun.ev);
+  tunif_init(&t.tun, tunfd);
   while(t.running)
   {
     printf("generate new identity\n");

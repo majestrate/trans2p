@@ -71,6 +71,8 @@ void i2cp_offer(struct i2cp_state * state, uint8_t * data, ssize_t sz)
   }
   if(sz < 0) return;
 
+  printf("i2cp read %ld\n", sz);
+  
   if(sizeof(state->readcur.buf) <= state->readcur.sz + sz)
   {
     printf("overflow\n");
@@ -194,6 +196,7 @@ void i2cp_state_init(struct i2cp_state * st, i2cp_write_handler h, void * impl)
   assert(h);
   assert(impl);
   st->write = h;
+  st->sid = 0;
   st->sentinit = false;
   st->writeimpl = impl;
   st->readcur.sz = 0;
@@ -201,4 +204,48 @@ void i2cp_state_init(struct i2cp_state * st, i2cp_write_handler h, void * impl)
   i2cp_ringbuf_init(&st->readbuf);
   i2cp_ringbuf_init(&st->writebuf);
   memset(st->handlers, 0, sizeof(st->handlers));
+}
+
+bool i2cp_parse_payload(struct i2cp_payload * p)
+{
+  bool ret = false;
+  int err;
+
+  p->srcport = bufbe16toh(p->ptr + 4);
+  p->dstport = bufbe16toh(p->ptr + 6);
+  p->proto = p->ptr[9];
+  
+  z_stream * gzip = &p->gzip;
+  
+  memset(gzip, 0, sizeof(z_stream));
+  inflateInit2(gzip, MAX_WBITS + 16);
+
+  gzip->next_in = p->ptr;
+  gzip->avail_in = p->ptrlen;
+  gzip->next_out = p->payload;
+  gzip->avail_out = sizeof(p->payload);
+
+  err = inflate(gzip, Z_NO_FLUSH);
+  if(err == Z_STREAM_END)
+  {
+    p->sz = sizeof(p->payload) - gzip->avail_out;
+    ret = p->sz <= sizeof(p->payload);
+  }
+  inflateEnd(gzip);
+  return ret;
+}
+
+void i2cp_send_payload(struct i2cp_state * st, struct i2p_dest * to, struct i2cp_payload * p)
+{
+
+  uint8_t buf[65536];
+  
+  bool ret = false;
+  int err;
+
+  uint8_t * body = buf;
+  htobe32buf(body, p->sz);
+
+  body += 4;
+
 }
