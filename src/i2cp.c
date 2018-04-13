@@ -64,7 +64,6 @@ bool i2cp_get_handler(struct i2cp_state * st, uint8_t msgno, struct i2cp_msg_han
 
 void i2cp_offer(struct i2cp_state * state, uint8_t * data, ssize_t sz)
 {
-  printf("i2cp_offer %ld\n", sz);
   if(sz == 0)
   {
     i2cp_flush_read(state);
@@ -77,7 +76,6 @@ void i2cp_offer(struct i2cp_state * state, uint8_t * data, ssize_t sz)
     printf("overflow\n");
     return;
   }
-  printf("readsz = %d sz = %ld\n", state->readcur.sz, sz);
   memcpy(state->readcur.buf + state->readcur.sz, data, sz);
   state->readcur.sz += sz;
   
@@ -176,6 +174,7 @@ void i2cp_tick(struct i2cp_state * st)
 
 void i2cp_queue_send(struct i2cp_state * st, uint8_t msgtype, uint8_t * ptr, uint32_t sz)
 {
+  printf("i2cp queue send %d\n", sz);
   i2cp_ringbuf_append(&st->writebuf, msgtype, ptr, sz);
 }
 

@@ -31,6 +31,7 @@ namespace crypto
 
 			virtual ~Signer () {};
 			virtual void Sign (const uint8_t * buf, int len, uint8_t * signature) const = 0;
+      virtual size_t GetSignatureLen () const = 0;
 	};
 
 	const size_t DSA_PUBLIC_KEY_LENGTH = 128;
@@ -100,7 +101,7 @@ namespace crypto
 				bn2buf (s, signature + DSA_SIGNATURE_LENGTH/2, DSA_SIGNATURE_LENGTH/2);
 				DSA_SIG_free(sig);
 			}
-
+    size_t GetSignatureLen () const { return DSA_SIGNATURE_LENGTH; };
 		private:
 
 			DSA * m_PrivateKey;
@@ -205,6 +206,11 @@ namespace crypto
 				EC_KEY_free (m_PrivateKey);
 			}
 
+    size_t GetSignatureLen() const
+    {
+      return Hash::hashLen;
+    }
+    
 			void Sign (const uint8_t * buf, int len, uint8_t * signature) const
 			{
 				uint8_t digest[Hash::hashLen];
@@ -324,7 +330,7 @@ namespace crypto
 				unsigned int signatureLen = keyLen;
 				RSA_sign (type, digest, Hash::hashLen, signature, &signatureLen, m_PrivateKey);
 			}
-
+    size_t GetSignatureLen () const { return keyLen; }
 		private:
 
 			RSA * m_PrivateKey;
@@ -440,7 +446,7 @@ namespace crypto
 			// we pass signingPublicKey to check if it matches private key
 			void Sign (const uint8_t * buf, int len, uint8_t * signature) const;
 			const uint8_t * GetPublicKey () const { return m_PublicKeyEncoded; };
-
+      size_t GetSignatureLen () const { return EDDSA25519_SIGNATURE_LENGTH; };
 		private:
 
 			uint8_t m_ExpandedPrivateKey[64];
