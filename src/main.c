@@ -301,7 +301,7 @@ int iter_config(void * user, const char * section, const char * name, const char
       config->i2cp_port = atoi(value);
     }
   }
-  if(!strcmp(section, "tunif"))
+  if(!strcmp(section, "netif"))
   {
     if(!strcmp(name, "enabled"))
     {
@@ -337,7 +337,7 @@ void config_init_default(struct trans2p_config * conf)
 
 int main(int argc, char * argv[])
 {
-  const char * fname = "config.ini";
+  const char * fname = "default.ini";
 
 
   if(argc > 1)
@@ -362,7 +362,13 @@ int main(int argc, char * argv[])
   int err = ini_parse(fname, &iter_config, &t.config);
   if (err != 0)
   {
-    return -1;
+    if(err == -1)
+      printf("cannot open %s\n", fname);
+    else if(err == -2)
+      printf("alloc error\n");
+    else
+      printf("error %d\n", err);
+    return err;
   }
 
   i2p_crypto_init();
@@ -393,6 +399,8 @@ int main(int argc, char * argv[])
     api->add(t.impl,  &t.tun.ev);
     tunif_init(&t.tun, tunfd);
   }
+  else
+    printf("tun interface disabled\n");
   while(t.running)
   {
     printf("generate new identity\n");
