@@ -4,6 +4,12 @@
 #include "i2p_crypto.h"
 #include <zlib.h>
 
+struct i2cp_param
+{
+  char addr[256];
+  int port;
+};
+
 struct i2cp_state;
 
 

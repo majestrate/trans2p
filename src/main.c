@@ -21,9 +21,9 @@
 struct trans2p_config
 {
   struct tun_param tun;
+  struct dns_param dns;
+  struct i2cp_param i2cp;
   bool enable_tun;
-  char i2cp_addr[128];
-  int i2cp_port;
 };
 
 struct trans2p
@@ -49,7 +49,7 @@ struct handler
 {
   struct trans2p * t;
 
-  uint8_t readbuf[1024];
+  uint8_t readbuf[512];
   
   void (*read)(ssize_t, struct handler *);  
   void (*write)(struct handler *);
@@ -243,7 +243,7 @@ void mainloop(struct trans2p * t)
   struct ev_event ev;
   struct handler * h;
   int res;
-  int count;
+  ssize_t count;
   printf("mainloop\n");
   do
   {
@@ -262,6 +262,7 @@ void mainloop(struct trans2p * t)
           count = read(ev.fd, h->readbuf, sizeof(h->readbuf));
           if(count > 0 && h->read)
           {
+            printf("read %ld of %ld\n", count, sizeof(h->readbuf));
             h->read(count, h);
           }
           else if (count == 0)
@@ -290,16 +291,28 @@ void mainloop(struct trans2p * t)
 int iter_config(void * user, const char * section, const char * name, const char * value)
 {
   struct trans2p_config * config = user;
+  if(!strcmp(section, "resolver"))
+  {
+    if(!strcmp(name, "bind-addr"))
+    {
+      strncpy(config->dns.addr, value, sizeof(config->dns.addr));
+    }
+    if(!strcmp(name, "bind-port"))
+    {
+      config->dns.port = atoi(value);
+      return config->dns.port > 0;
+    }
+  }
   if(!strcmp(section, "i2cp"))
   {
     if(!strcmp(name, "addr"))
     {
-      strncpy(config->i2cp_addr, value, sizeof(config->i2cp_addr));
+      strncpy(config->i2cp.addr, value, sizeof(config->i2cp.addr));
     }
     if(!strcmp(name, "port"))
     {
-      config->i2cp_port = atoi(value);
-      return config->i2cp_port > 0;
+      config->i2cp.port = atoi(value);
+      return config->i2cp.port > 0;
     }
   }
   if(!strcmp(section, "netif"))
@@ -333,8 +346,11 @@ void config_init_default(struct trans2p_config * conf)
   inet_pton(AF_INET, "10.55.0.1", &conf->tun.addr);
   inet_pton(AF_INET, "255.255.0.0", &conf->tun.netmask);
   
-  strncpy(conf->i2cp_addr, "127.0.0.1", sizeof(conf->i2cp_addr));
-  conf->i2cp_port = 7654;
+  strncpy(conf->i2cp.addr, "127.0.0.1", sizeof(conf->i2cp.addr));
+  conf->i2cp.port = 7654;
+
+  strncpy(conf->dns.addr, "127.0.0.1", sizeof(conf->dns.addr));
+  conf->dns.port = 5553;
 }
 
 int main(int argc, char * argv[])
@@ -411,8 +427,8 @@ int main(int argc, char * argv[])
     char * buf = (char *) t.buf;
     i2p_dest_tob32addr(&t.ourdest, buf, sizeof(t.buf));
     printf("we are %s\n", buf);
-    printf("connecting to %s port %d\n", t.config.i2cp_addr, t.config.i2cp_port);
-    if(blocking_tcp_connect(t.config.i2cp_addr, t.config.i2cp_port, &t.i2cp_fd))
+    printf("connecting to %s port %d\n", t.config.i2cp.addr, t.config.i2cp.port);
+    if(blocking_tcp_connect(t.config.i2cp.addr, t.config.i2cp.port, &t.i2cp_fd))
     {
       printf("connected\n");
       t.i2cp_ev.fd = t.i2cp_fd;

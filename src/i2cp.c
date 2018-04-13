@@ -85,12 +85,15 @@ void i2cp_offer(struct i2cp_state * state, uint8_t * data, ssize_t sz)
   if(state->readcur.sz > 4)
   {
     uint32_t curlen = bufbe32toh(state->readcur.buf);
-    if( curlen + 5 >= state->readcur.sz)
+    printf("curlen=%d sz=%d\n", curlen, state->readcur.sz);
+    if( curlen + 5 <= state->readcur.sz)
     {
+      printf("append readbuf\n");
       i2cp_ringbuf_append(&state->readbuf, state->readcur.buf[4], state->readcur.buf + 5, curlen);
       ssize_t diff = state->readcur.sz - (curlen + 5);
       state->readcur.sz = 0;
-      i2cp_offer(state, state->readcur.buf + diff, diff);
+      if(diff > 0)
+        i2cp_offer(state, state->readcur.buf + diff, diff);
     }
   }
 }
