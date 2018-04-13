@@ -10,10 +10,6 @@ https://github.com/benhoyt/inih
 #ifndef __INI_H__
 #define __INI_H__
 
-#define INI_USE_STACK 1
-#define INI_MAX_LINE 512
-#define INI_ALLOW_MULTILINE 0
-#define INI_ALLOW_INLINE_COMMENTS 1
 
 /* Make this header file easier to include in C++ code */
 #ifdef __cplusplus

@@ -320,7 +320,7 @@ int iter_config(void * user, const char * section, const char * name, const char
       config->tun.mtu = atoi(value);
     }
   }
-  return 0;
+  return 1;
 }
 
 void config_init_default(struct trans2p_config * conf)
