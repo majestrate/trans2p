@@ -299,6 +299,7 @@ int iter_config(void * user, const char * section, const char * name, const char
     if(!strcmp(name, "port"))
     {
       config->i2cp_port = atoi(value);
+      return config->i2cp_port > 0;
     }
   }
   if(!strcmp(section, "netif"))
@@ -309,15 +310,16 @@ int iter_config(void * user, const char * section, const char * name, const char
     }
     if(!strcmp(name, "addr"))
     {
-      inet_pton(AF_INET, value, &config->tun.addr);
+      return inet_pton(AF_INET, value, &config->tun.addr) != -1;
     }
     if(!strcmp(name, "netmask"))
     {
-      inet_pton(AF_INET, value, &config->tun.netmask);
+      return inet_pton(AF_INET, value, &config->tun.netmask) != -1;
     }
     if(!strcmp(name, "mtu"))
     {
       config->tun.mtu = atoi(value);
+      return config->tun.mtu > 0;
     }
   }
   return 1;
