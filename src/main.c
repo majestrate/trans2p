@@ -9,7 +9,7 @@
 #include "i2p_crypto.h"
 #include "packet_internal.h"
 #include "tun.h"
-#include "dns_internal.h"
+#include "util.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,7 +31,6 @@ struct trans2p
   struct i2p_elg lskey;
   struct i2cp_payload payload;
   struct packet_state pkt;
-  struct dns_state dns;
   struct tunif tun;
   uint8_t buf[65536];
 };
@@ -54,19 +53,6 @@ void tun_onpacket(ssize_t sz, struct handler * h)
     ringbuf_append(&h->t->tun.read, h->readbuf, readsz);
   }
 }
-
-
-static void hexdump(uint8_t * ptr, uint32_t sz)
-{
-  uint32_t idx = 0;
-  while(idx < sz)
-  {
-    printf("%02x ", ptr[idx++]);
-    if(idx % 8 == 0) printf("\n");
-  }
-  printf("\n");
-}
-
 
 void i2cp_onread(ssize_t sz, struct handler * h)
 {
