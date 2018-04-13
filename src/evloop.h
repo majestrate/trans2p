@@ -16,7 +16,7 @@ struct ev_impl;
 
 struct tun_param
 {
-  const char * ifname;
+  char ifname[256];
   int mtu;
   struct in_addr addr;
   struct in_addr netmask;

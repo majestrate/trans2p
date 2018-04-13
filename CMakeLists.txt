@@ -16,6 +16,7 @@ set(TRANS2P_SRC
   "src/blocking.c"
   "src/main.c"
   "src/util.c"
+  "src/ini.c"
   "src/evloop.c"
   "src/i2cp.c"
   "src/packet.c"

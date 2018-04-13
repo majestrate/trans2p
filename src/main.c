@@ -10,6 +10,7 @@
 #include "packet_internal.h"
 #include "tun.h"
 #include "util.h"
+#include "ini.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,8 +18,17 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+struct trans2p_config
+{
+  struct tun_param tun;
+  bool enable_tun;
+  char i2cp_addr[128];
+  int i2cp_port;
+};
+
 struct trans2p
 {
+  struct trans2p_config config;
   struct ev_impl * impl;
   struct ev_api api;
   struct ev_event i2cp_ev;
@@ -277,8 +287,61 @@ void mainloop(struct trans2p * t)
   while(res != -1);
 }
 
+int iter_config(void * user, const char * section, const char * name, const char * value)
+{
+  struct trans2p_config * config = user;
+  if(!strcmp(section, "i2cp"))
+  {
+    if(!strcmp(name, "addr"))
+    {
+      strncpy(config->i2cp_addr, value, sizeof(config->i2cp_addr));
+    }
+    if(!strcmp(name, "port"))
+    {
+      config->i2cp_port = atoi(value);
+    }
+  }
+  if(!strcmp(section, "tunif"))
+  {
+    if(!strcmp(name, "enabled"))
+    {
+      config->enable_tun = strcmp(value, "1") == 0;
+    }
+    if(!strcmp(name, "addr"))
+    {
+      inet_pton(AF_INET, value, &config->tun.addr);
+    }
+    if(!strcmp(name, "netmask"))
+    {
+      inet_pton(AF_INET, value, &config->tun.netmask);
+    }
+    if(!strcmp(name, "mtu"))
+    {
+      config->tun.mtu = atoi(value);
+    }
+  }
+  return 0;
+}
+
+void config_init_default(struct trans2p_config * conf)
+{
+  conf->enable_tun = false;
+  strncpy(conf->tun.ifname, "i2p0", sizeof(conf->tun.ifname));
+  conf->tun.mtu = 1500;
+  inet_pton(AF_INET, "10.55.0.1", &conf->tun.addr);
+  inet_pton(AF_INET, "255.255.0.0", &conf->tun.netmask);
+  
+  strncpy(conf->i2cp_addr, "127.0.0.1", sizeof(conf->i2cp_addr));
+  conf->i2cp_port = 7654;
+}
+
 int main(int argc, char * argv[])
 {
+  const char * fname = "config.ini";
+
+
+  if(argc > 1)
+    fname = argv[1];
   
   struct trans2p t;
 
@@ -293,22 +356,15 @@ int main(int argc, char * argv[])
     .read = &i2cp_onread,
     .write = NULL
   };
-  
-  const char * i2cp_addr;
-  int i2cp_port;
 
-  if(argc != 4)
+  config_init_default(&t.config);
+
+  int err = ini_parse(fname, &iter_config, &t.config);
+  if (err != 0)
   {
-    printf("usage %s i2cp_host i2cp_port ifname\n", argv[0]);
-    return 1;
+    return -1;
   }
-  i2cp_addr = argv[1];
-  i2cp_port = atoi(argv[2]);
-  if(i2cp_port == -1)
-  {
-    printf("invalid i2cp port %s\n", argv[2]);
-    return 1;
-  }
+
   i2p_crypto_init();
   i2cp_state_init(&t.i2cp, &i2cp_write, &t);
 
@@ -325,20 +381,18 @@ int main(int argc, char * argv[])
   t.impl = api->open();
   assert(t.impl);
   
-  struct tun_param tun;
-  tun.ifname = argv[3];
-  tun.mtu = 1500;
   // TODO: make configurable
-  assert(inet_pton(AF_INET, "10.55.0.1", &tun.addr) == 1);
-  assert(inet_pton(AF_INET, "255.255.255.0", &tun.netmask) == 1);
-  printf("open tun interface %s\n", tun.ifname);
-  int tunfd = api->tun(t.impl, tun);
-  if(tunfd == -1) return 1;
-  t.tun.ev.fd = tunfd;
-  t.tun.ev.ptr = &tun_handler;
-  t.tun.ev.flags = EV_READ | EV_WRITE;
-  api->add(t.impl,  &t.tun.ev);
-  tunif_init(&t.tun, tunfd);
+  if(t.config.enable_tun)
+  {
+    printf("open tun interface %s\n", t.config.tun.ifname);
+    int tunfd = api->tun(t.impl, t.config.tun);
+    if(tunfd == -1) return 1;
+    t.tun.ev.fd = tunfd;
+    t.tun.ev.ptr = &tun_handler;
+    t.tun.ev.flags = EV_READ | EV_WRITE;
+    api->add(t.impl,  &t.tun.ev);
+    tunif_init(&t.tun, tunfd);
+  }
   while(t.running)
   {
     printf("generate new identity\n");
@@ -347,8 +401,8 @@ int main(int argc, char * argv[])
     char * buf = (char *) t.buf;
     i2p_dest_tob32addr(&t.ourdest, buf, sizeof(t.buf));
     printf("we are %s\n", buf);
-    printf("connecting to %s port %d\n", i2cp_addr, i2cp_port);
-    if(blocking_tcp_connect(i2cp_addr, i2cp_port, &t.i2cp_fd))
+    printf("connecting to %s port %d\n", t.config.i2cp_addr, t.config.i2cp_port);
+    if(blocking_tcp_connect(t.config.i2cp_addr, t.config.i2cp_port, &t.i2cp_fd))
     {
       printf("connected\n");
       t.i2cp_ev.fd = t.i2cp_fd;
