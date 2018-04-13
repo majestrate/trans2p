@@ -70,12 +70,9 @@ void i2cp_offer(struct i2cp_state * state, uint8_t * data, ssize_t sz)
     return;
   }
   if(sz < 0) return;
-
-  printf("i2cp read %ld\n", sz);
   
   if(sizeof(state->readcur.buf) <= state->readcur.sz + sz)
   {
-    printf("overflow\n");
     return;
   }
   memcpy(state->readcur.buf + state->readcur.sz, data, sz);
@@ -85,10 +82,8 @@ void i2cp_offer(struct i2cp_state * state, uint8_t * data, ssize_t sz)
   if(state->readcur.sz > 4)
   {
     uint32_t curlen = bufbe32toh(state->readcur.buf);
-    printf("curlen=%d sz=%d\n", curlen, state->readcur.sz);
     if( curlen + 5 <= state->readcur.sz)
     {
-      printf("append readbuf\n");
       i2cp_ringbuf_append(&state->readbuf, state->readcur.buf[4], state->readcur.buf + 5, curlen);
       ssize_t diff = state->readcur.sz - (curlen + 5);
       state->readcur.sz = 0;

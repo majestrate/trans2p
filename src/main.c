@@ -66,7 +66,6 @@ void tun_onpacket(ssize_t sz, struct handler * h)
 
 void i2cp_onread(ssize_t sz, struct handler * h)
 {
-  //hexdump(h->buf, sz);
   if(sz > 0)
     i2cp_offer(&h->t->i2cp, h->readbuf, sz); 
 }
@@ -262,7 +261,6 @@ void mainloop(struct trans2p * t)
           count = read(ev.fd, h->readbuf, sizeof(h->readbuf));
           if(count > 0 && h->read)
           {
-            printf("read %ld of %ld\n", count, sizeof(h->readbuf));
             h->read(count, h);
           }
           else if (count == 0)
