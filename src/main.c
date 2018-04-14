@@ -213,6 +213,10 @@ void onreqvarls(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user
 
 void dns_onread(ssize_t sz, struct handler * h)
 {
+  if(sz > 0)
+  {
+    dns_state_process_data(&h->t->dns, h->readbuf, sz);
+  }
 }
 
 void i2cp_write(void * impl, uint8_t * ptr, uint32_t sz)
