@@ -14,6 +14,7 @@ find_package(ZLIB)
 
 set(TRANS2P_SRC
   "src/blocking.c"
+  "src/dns.c"
   "src/main.c"
   "src/util.c"
   "src/ini.c"
@@ -21,6 +22,7 @@ set(TRANS2P_SRC
   "src/i2cp.c"
   "src/packet.c"
   "src/evloop_epoll.c"
+  "src/sock.c"
   "src/tun.c"
   "src/tun_linux.c"
   "src/tun_bsd.c"

@@ -3,6 +3,7 @@
  */
 #include "evloop.h"
 #include "blocking.h"
+#include "dns_internal.h"
 #include "i2cp_internal.h"
 #include "i2cp_msg.h"
 #include "i2p_endian.h"
@@ -11,6 +12,7 @@
 #include "tun.h"
 #include "util.h"
 #include "ini.h"
+#include "sock.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,6 +43,7 @@ struct trans2p
   struct i2p_elg lskey;
   struct i2cp_payload payload;
   struct packet_state pkt;
+  struct dns_state dns;
   struct tunif tun;
   uint8_t buf[65536];
 };
@@ -49,7 +52,7 @@ struct handler
 {
   struct trans2p * t;
 
-  uint8_t readbuf[512];
+  uint8_t readbuf[2048];
   
   void (*read)(ssize_t, struct handler *);  
   void (*write)(struct handler *);
@@ -208,7 +211,11 @@ void onreqvarls(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user
   printf("created LS with %d leases\n", numls);
 }
 
-static void i2cp_write(void * impl, uint8_t * ptr, uint32_t sz)
+void dns_onread(ssize_t sz, struct handler * h)
+{
+}
+
+void i2cp_write(void * impl, uint8_t * ptr, uint32_t sz)
 {
   struct trans2p * t = (struct trans2p * ) impl;
   int res = write(t->i2cp_fd, ptr, sz);
@@ -373,6 +380,12 @@ int main(int argc, char * argv[])
     .write = NULL
   };
 
+  struct handler dns_handler = {
+    .t = &t,
+    .read = &dns_onread,
+    .write = NULL
+  };
+  
   config_init_default(&t.config);
 
   int err = ini_parse(fname, &iter_config, &t.config);
@@ -387,6 +400,17 @@ int main(int argc, char * argv[])
     return err;
   }
 
+  t.dns.ev.flags = EV_READ;
+  t.dns.ev.ptr = &dns_handler;
+  t.dns.ev.fd = udp_socket();
+  assert(t.dns.ev.fd != -1);
+  if(!udp_bind(t.dns.ev.fd, t.config.dns.addr, t.config.dns.port))
+  {
+    printf("failed to bind udp socket for dns at %s %d\n", t.config.dns.addr, t.config.dns.port);
+    return -1;
+  }
+  dns_state_init(&t.dns);
+  
   i2p_crypto_init();
   i2cp_state_init(&t.i2cp, &i2cp_write, &t);
 
@@ -394,7 +418,6 @@ int main(int argc, char * argv[])
   i2cp_set_msghandler(&t.i2cp, SESSIONSTATUS, &onsessionstatus, &t);
   i2cp_set_msghandler(&t.i2cp, REQVARLS, &onreqvarls, &t);
   i2cp_set_msghandler(&t.i2cp, PAYLOAD, &onpayload, &t);
-
   
   struct ev_api * api;
   assert(ev_init(&t.api));
@@ -402,13 +425,18 @@ int main(int argc, char * argv[])
   api = &t.api;
   t.impl = api->open();
   assert(t.impl);
+
+  api->add(t.impl, &t.dns.ev);
   
-  // TODO: make configurable
   if(t.config.enable_tun)
   {
     printf("open tun interface %s\n", t.config.tun.ifname);
     int tunfd = api->tun(t.impl, t.config.tun);
-    if(tunfd == -1) return 1;
+    if(tunfd == -1)
+    {
+      printf("failed to open %s\n", t.config.tun.ifname);
+      return 1;
+    }
     t.tun.ev.fd = tunfd;
     t.tun.ev.ptr = &tun_handler;
     t.tun.ev.flags = EV_READ | EV_WRITE;

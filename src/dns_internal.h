@@ -1,6 +1,7 @@
 #ifndef DNS_INTERNAL_H
 #define DNS_INTERNAL_H
 #include "dns.h"
+#include "evloop.h"
 
 #define DNS_HOST_MAXLEN (256)
 #define DNS_HM_BUCKET_SZ (32)
@@ -29,6 +30,7 @@ size_t dns_lru_keyidx(const char * name);
 struct dns_state
 {
   struct dns_lru mapping;
+  struct ev_event ev;
 };
 
 #endif

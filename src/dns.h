@@ -12,6 +12,8 @@ struct dns_state;
 
 void dns_state_add_mapping(struct dns_state * st, const char * name, struct in_addr addr);
 
-void dns_state_init(struct dns_state * st, struct dns_param p);
+void dns_state_init(struct dns_state * st);
+
+void dns_state_handle_query(struct dns_state * st, uint8_t * data, size_t sz);
 
 #endif
