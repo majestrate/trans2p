@@ -13,6 +13,7 @@ find_package(OpenSSL)
 find_package(ZLIB)
 
 set(TRANS2P_SRC
+  "src/addrmapper.c"
   "src/blocking.c"
   "src/dns.c"
   "src/main.c"

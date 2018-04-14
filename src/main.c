@@ -414,6 +414,8 @@ int main(int argc, char * argv[])
     return -1;
   }
   dns_state_init(&t.dns);
+
+  addr_mapper_init(&t.dns.addr, t.config.tun.addr, t.config.tun.netmask);
   
   i2p_crypto_init();
   i2cp_state_init(&t.i2cp, &i2cp_write, &t);

@@ -1,5 +1,6 @@
 #ifndef ADDRMAPPER_INTERNAL_H
 #define ADDRMAPPER_INTERNAL_H
+#include "addrmapper.h"
 
 struct addr_mapper
 {
