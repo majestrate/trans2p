@@ -4,5 +4,6 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include "i2p_endian.h"
 
 #endif

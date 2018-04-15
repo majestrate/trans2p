@@ -1,5 +1,12 @@
-#include "i2p_crypto_internal.hpp"
-#include <cassert>
+
+#include "i2p_crypto.h"
+#include "elg.h"
+#include "i2p_endian.h"
+#include "base.h"
+#include <openssl/rand.h>
+#include <openssl/ssl.h>
+
+#include <assert.h>
 
 #define NIST_256_PADDING_BYTES (64)
 #define NIST_384_PADDING_BYTES (32)
@@ -11,12 +18,14 @@
 #define EDDSA_KEYTYPE (7)
 #define ELG_KEYTYPE (0)
 
+void i2p_crypto_init(void)
+{
+  SSL_library_init();
+}
 
-extern "C" {
-#include "i2p_crypto.h"
-#include "elg.h"
-#include "i2p_endian.h"
-
+void i2p_crypto_end(void)
+{
+}
   
 bool i2p_dest_load(struct i2p_dest * dest, uint8_t * data, size_t sz)
 {
@@ -47,7 +56,7 @@ bool i2p_dest_load(struct i2p_dest * dest, uint8_t * data, size_t sz)
     dest->sigkey = dest->buf + 256;
     dest->cert.type = CERT_NULL;
     dest->cert.sz = 0;
-    dest->cert.data = nullptr;
+    dest->cert.data = 0;
     return true;
   }
   return false;
@@ -55,8 +64,8 @@ bool i2p_dest_load(struct i2p_dest * dest, uint8_t * data, size_t sz)
   
 void i2p_keygen(struct i2p_privkeybuf * priv)
 {
-  i2p_eddsa_keygen(priv->eddsa.priv, priv->eddsa.pub);
-  i2p_elg_keygen(priv->elg.priv, priv->elg.pub);
+  i2p_eddsa_keygen(&priv->eddsa);
+  i2p_elg_keygen(&priv->elg);
 }
 
 void i2p_privkey_dest(struct i2p_privkeybuf * priv, struct i2p_dest * pub)
@@ -99,36 +108,29 @@ void i2p_dest_tob32addr(struct i2p_dest * dest, char * buf, size_t sz)
 }
 
 
-  size_t i2p_dest_sigsize(struct i2p_privkeybuf * priv)
+size_t i2p_dest_sigsize(struct i2p_privkeybuf * priv)
+{
+  switch(priv->sigtype)
   {
-    switch(priv->sigtype)
-    {
-    case EDDSA_KEYTYPE:
-      return 32;
-    case DSA_KEYTYPE:
-      return 128;
-    default:
-      return 0;
-    }
+  case EDDSA_KEYTYPE:
+    return 32;
+  case DSA_KEYTYPE:
+    return 128;
+  default:
+    return 0;
   }
+}
 
-  
-  static bool i2p_dsa_sign(struct i2p_dsa * dsa, const uint8_t * buf, size_t sz, uint8_t * sig)
+bool i2p_dest_sign(struct i2p_privkeybuf * priv, const uint8_t * buf, size_t sz, uint8_t * sig)
+{
+  switch(priv->sigtype)
   {
+  case EDDSA_KEYTYPE:
+    return i2p_eddsa_sign(&priv->eddsa, buf, sz, sig);
+  case DSA_KEYTYPE:
+    return i2p_dsa_sign(&priv->dsa, buf, sz, sig);
+  default:
     return false;
   }
-  
-  bool i2p_dest_sign(struct i2p_privkeybuf * priv, const uint8_t * buf, size_t sz, uint8_t * sig)
-  {
-    switch(priv->sigtype)
-    {
-    case EDDSA_KEYTYPE:
-      return i2p_eddsa_sign(&priv->eddsa, buf, sz, sig);
-    case DSA_KEYTYPE:
-      return i2p_dsa_sign(&priv->dsa, buf, sz, sig);
-    default:
-      return false;
-    }
-  }
-  
 }
+

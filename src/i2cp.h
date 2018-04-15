@@ -8,6 +8,7 @@ struct i2cp_param
 {
   char addr[256];
   int port;
+  bool enabled;
 };
 
 struct i2cp_state;

@@ -8,6 +8,7 @@
 #include "i2cp_msg.h"
 #include "i2p_endian.h"
 #include "i2p_crypto.h"
+#include "elg.h"
 #include "packet_internal.h"
 #include "tun.h"
 #include "util.h"
@@ -108,7 +109,7 @@ void onsetdate(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user)
   struct i2p_privkeybuf * priv = &t->privkey;
   struct i2p_dest * dest = &t->ourdest;
 
-  i2p_elg_keygen(t->lskey.priv, t->lskey.pub);
+  i2p_elg_keygen(&t->lskey);
   
   uint8_t * buf = t->buf;
   uint8_t * begin = buf;
@@ -148,7 +149,7 @@ void onpayload(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user)
   if(i2cp_parse_payload(&t->payload))
   {
     uint16_t ippkt_sz;
-    if(translate_i2cp_to_ip(&t->pkt, &t->payload, t->buf, &ippkt_sz))
+    if(translate_i2cp_to_ip(&t->pkt, &t->payload, t->buf, sizeof(t->buf), &ippkt_sz))
     {
       ringbuf_append(&t->tun.write, t->buf, ippkt_sz);
     }
@@ -213,6 +214,7 @@ void onreqvarls(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user
 
 void dns_onread(ssize_t sz, struct handler * h)
 {
+  printf("dns onread %ld\n", sz);
   if(sz > 0)
   {
     dns_state_process_data(&h->t->dns, h->readbuf, sz);
@@ -314,6 +316,10 @@ int iter_config(void * user, const char * section, const char * name, const char
   }
   if(!strcmp(section, "i2cp"))
   {
+    if(!strcmp(name, "enabled"))
+    {
+      config->i2cp.enabled = strcmp(value, "1") == 0;
+    }
     if(!strcmp(name, "addr"))
     {
       strncpy(config->i2cp.addr, value, sizeof(config->i2cp.addr));
@@ -357,6 +363,7 @@ void config_init_default(struct trans2p_config * conf)
   
   strncpy(conf->i2cp.addr, "127.0.0.1", sizeof(conf->i2cp.addr));
   conf->i2cp.port = 7654;
+  conf->i2cp.enabled = true;
 
   strncpy(conf->dns.addr, "127.0.0.1", sizeof(conf->dns.addr));
   conf->dns.port = 5553;
@@ -408,6 +415,7 @@ int main(int argc, char * argv[])
   t.dns.ev.ptr = &dns_handler;
   t.dns.ev.fd = udp_socket();
   assert(t.dns.ev.fd != -1);
+  printf("binding dns server to %s:%d\n", t.config.dns.addr, t.config.dns.port);
   if(!udp_bind(t.dns.ev.fd, t.config.dns.addr, t.config.dns.port))
   {
     printf("failed to bind udp socket for dns at %s %d\n", t.config.dns.addr, t.config.dns.port);
@@ -459,23 +467,27 @@ int main(int argc, char * argv[])
     char * buf = (char *) t.buf;
     i2p_dest_tob32addr(&t.ourdest, buf, sizeof(t.buf));
     printf("we are %s\n", buf);
-    printf("connecting to %s port %d\n", t.config.i2cp.addr, t.config.i2cp.port);
-    if(blocking_tcp_connect(t.config.i2cp.addr, t.config.i2cp.port, &t.i2cp_fd))
+    if(t.config.i2cp.enabled)
     {
-      printf("connected\n");
-      t.i2cp_ev.fd = t.i2cp_fd;
-      t.i2cp_ev.ptr = &i2cp_handler;
-      t.i2cp_ev.flags = EV_READ;
-      assert(api->add(t.impl, &t.i2cp_ev));
-      i2cp_begin(&t.i2cp);
-      mainloop(&t);
-      api->del(t.impl, t.i2cp_fd);
+      printf("connecting to i2p router at %s port %d\n", t.config.i2cp.addr, t.config.i2cp.port);
+      if(blocking_tcp_connect(t.config.i2cp.addr, t.config.i2cp.port, &t.i2cp_fd))
+      {
+        t.i2cp_ev.fd = t.i2cp_fd;
+        t.i2cp_ev.ptr = &i2cp_handler;
+        t.i2cp_ev.flags = EV_READ;
+        assert(api->add(t.impl, &t.i2cp_ev));
+        i2cp_begin(&t.i2cp);
+        mainloop(&t);
+        api->del(t.impl, t.i2cp_fd);
+      }
+      else
+      {
+        perror("blocking_tcp_connect()");
+        sleep(1);
+      }
     }
     else
-    {
-      perror("blocking_tcp_connect()");
-      sleep(1);
-    }
+      mainloop(&t);
   }
   api->close(t.impl);
   i2p_crypto_end();

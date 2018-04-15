@@ -3,13 +3,13 @@
 #include "dns.h"
 #include "evloop.h"
 #include "addrmapper_internal.h"
-
+#include "common.h"
 
 struct dns_msg_hdr
 {
 		unsigned qid:16;
 
-#if (defined BYTE_ORDER && BYTE_ORDER == BIG_ENDIAN) || (defined __sun && defined _BIG_ENDIAN)
+#if BIG_ENDIAN
 		unsigned qr:1;
 		unsigned opcode:4;
 		unsigned aa:1;
@@ -40,7 +40,7 @@ struct dns_msg_hdr
 struct dns_msg
 {
   struct dns_msg_hdr * hdr;
-  uint8_t qname[256];
+  char qname[256];
   uint16_t qtype;
   uint16_t qclass;
 };

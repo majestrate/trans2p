@@ -5,7 +5,7 @@ set(EXE trans2p)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 -g -Wall")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -g -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -g -Wall")
 
 include(FindPackageHandleStandardArgs)
 include(GNUInstallDirs)
@@ -15,8 +15,12 @@ find_package(ZLIB)
 set(TRANS2P_SRC
   "src/addrmapper.c"
   "src/blocking.c"
+  "src/base.c"
   "src/dns.c"
-  "src/main.c"
+  "src/dsa.c"
+  "src/elg.c"
+  "src/eddsa.c"
+  "src/bn.c"
   "src/util.c"
   "src/ini.c"
   "src/evloop.c"
@@ -28,11 +32,8 @@ set(TRANS2P_SRC
   "src/tun_linux.c"
   "src/tun_bsd.c"
   "src/tun_win32.c"
-  "src/i2p_crypto.cpp"
-  "src/i2pd/base.cpp"
-  "src/i2pd/signature.cpp"
-  "src/i2pd/crypto.cpp"
-  "src/i2pd/cpu.cpp"
+  "src/i2p_crypto.c"
+  "src/main.c"
 )
 
 
