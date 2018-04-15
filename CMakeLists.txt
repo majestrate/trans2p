@@ -12,30 +12,35 @@ include(GNUInstallDirs)
 find_package(OpenSSL)
 find_package(ZLIB)
 
+
+set(HASH "sha2_openssl")
+set(RANDOM "rand_openssl")
+set(BUILD "STATIC")
+add_subdirectory(iroha-ed25519)
+
 set(TRANS2P_SRC
-  "src/addrmapper.c"
-  "src/blocking.c"
-  "src/base.c"
-  "src/dns.c"
-  "src/dsa.c"
-  "src/elg.c"
-  "src/eddsa.c"
-  "src/bn.c"
-  "src/util.c"
-  "src/ini.c"
-  "src/evloop.c"
-  "src/i2cp.c"
-  "src/packet.c"
-  "src/evloop_epoll.c"
-  "src/sock.c"
-  "src/tun.c"
-  "src/tun_linux.c"
-  "src/tun_bsd.c"
-  "src/tun_win32.c"
-  "src/i2p_crypto.c"
-  "src/main.c"
+  "trans2p/addrmapper.c"
+  "trans2p/blocking.c"
+  "trans2p/base.c"
+  "trans2p/dns.c"
+  "trans2p/dsa.c"
+  "trans2p/elg.c"
+  "trans2p/eddsa.c"
+  "trans2p/bn.c"
+  "trans2p/util.c"
+  "trans2p/ini.c"
+  "trans2p/evloop.c"
+  "trans2p/i2cp.c"
+  "trans2p/packet.c"
+  "trans2p/evloop_epoll.c"
+  "trans2p/sock.c"
+  "trans2p/tun.c"
+  "trans2p/tun_linux.c"
+  "trans2p/tun_bsd.c"
+  "trans2p/tun_win32.c"
+  "trans2p/i2p_crypto.c"
+  "trans2p/main.c"
 )
 
-
 add_executable(${EXE} ${TRANS2P_SRC})
-target_link_libraries(${EXE} ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES})
+target_link_libraries(${EXE} ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES} ed25519)
