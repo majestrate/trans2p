@@ -3,11 +3,7 @@
 #include "common.h"
 
 
-struct i2p_elg
-{
-  uint8_t priv[256];
-  uint8_t pub[256];
-};
+struct i2p_elg;
 
 void i2p_elg_keygen(struct i2p_elg * elg);
 

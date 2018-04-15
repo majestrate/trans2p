@@ -20,6 +20,7 @@ struct tun_param
   int mtu;
   struct in_addr addr;
   struct in_addr netmask;
+  bool enabled;
 };
 
 struct ev_api

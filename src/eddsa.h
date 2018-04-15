@@ -2,11 +2,7 @@
 #define I2P_EDDSA_H
 #include "common.h"
 
-struct i2p_eddsa
-{
-  uint8_t priv[64];
-  uint8_t pub[32];
-};
+struct i2p_eddsa;
 
 void i2p_eddsa_keygen(struct i2p_eddsa * ed);
 

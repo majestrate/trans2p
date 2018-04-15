@@ -7,8 +7,7 @@
 #include "i2cp_internal.h"
 #include "i2cp_msg.h"
 #include "i2p_endian.h"
-#include "i2p_crypto.h"
-#include "elg.h"
+#include "i2p_crypto_internal.h"
 #include "packet_internal.h"
 #include "tun.h"
 #include "util.h"
@@ -26,7 +25,6 @@ struct trans2p_config
   struct tun_param tun;
   struct dns_param dns;
   struct i2cp_param i2cp;
-  bool enable_tun;
 };
 
 struct trans2p
@@ -334,7 +332,7 @@ int iter_config(void * user, const char * section, const char * name, const char
   {
     if(!strcmp(name, "enabled"))
     {
-      config->enable_tun = strcmp(value, "1") == 0;
+      config->tun.enabled = strcmp(value, "1") == 0;
     }
     if(!strcmp(name, "addr"))
     {
@@ -355,7 +353,7 @@ int iter_config(void * user, const char * section, const char * name, const char
 
 void config_init_default(struct trans2p_config * conf)
 {
-  conf->enable_tun = false;
+  conf->tun.enabled = false;
   strncpy(conf->tun.ifname, "i2p0", sizeof(conf->tun.ifname));
   conf->tun.mtu = 1500;
   inet_pton(AF_INET, "10.55.0.1", &conf->tun.addr);
@@ -442,7 +440,7 @@ int main(int argc, char * argv[])
 
   api->add(t.impl, &t.dns.ev);
   
-  if(t.config.enable_tun)
+  if(t.config.tun.enabled)
   {
     printf("open tun interface %s\n", t.config.tun.ifname);
     int tunfd = api->tun(t.impl, t.config.tun);

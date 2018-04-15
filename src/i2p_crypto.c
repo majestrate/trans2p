@@ -1,5 +1,5 @@
 
-#include "i2p_crypto.h"
+#include "i2p_crypto_internal.h"
 #include "elg.h"
 #include "i2p_endian.h"
 #include "base.h"

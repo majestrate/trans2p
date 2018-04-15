@@ -1,4 +1,4 @@
-#include "elg.h"
+#include "elg_internal.h"
 #include "bn.h"
 #include <openssl/rand.h>
 
