@@ -134,3 +134,16 @@ bool i2p_dest_sign(struct i2p_privkeybuf * priv, const uint8_t * buf, size_t sz,
   }
 }
 
+bool i2p_dest_verify(struct i2p_dest * dest, const uint8_t * buf, size_t sz, const uint8_t * sig)
+{
+  switch(dest->sigtype)
+  {
+  case EDDSA_KEYTYPE:
+    return i2p_eddsa_verify(dest->sigkey, buf, sz, sig);
+  case DSA_KEYTYPE:
+    return i2p_dsa_verify(dest->sigkey, buf, sz, sig);
+  default:
+    return false;
+  }
+}
+

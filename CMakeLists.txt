@@ -17,6 +17,7 @@ set(HASH "sha2_openssl")
 set(RANDOM "rand_openssl")
 set(BUILD "STATIC")
 add_subdirectory(iroha-ed25519)
+include_directories(iroha-ed25519/include)
 
 set(TRANS2P_SRC
   "trans2p/addrmapper.c"

@@ -1,11 +1,12 @@
 #ifndef I2P_EDDSA_INTERNAL_H
 #define I2P_EDDSA_INTERNAL_H
 #include "eddsa.h"
+#include <ed25519/ed25519.h>
 
 struct i2p_eddsa
 {
-  uint8_t priv[64];
-  uint8_t pub[32];
+  unsigned char pub[ed25519_pubkey_SIZE];
+  unsigned char priv[ed25519_privkey_SIZE];
 };
 
 

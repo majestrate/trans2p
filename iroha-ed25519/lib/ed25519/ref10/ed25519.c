@@ -4,29 +4,29 @@
 #include "ge.h"
 #include "sc.h"
 
-int ed25519_create_keypair(private_key_t *sk, public_key_t *pk) {
-  if (!randombytes(sk->data, ed25519_privkey_SIZE))
+int ed25519_create_keypair(unsigned char *sk, unsigned char *pk) {
+  if (!randombytes(sk, ed25519_privkey_SIZE))
     return ED25519_ERROR;            /* RNG failed, not enough entropy */
   ed25519_derive_public_key(sk, pk); /* fill with data */
   return ED25519_SUCCESS;            /* ok */
 }
 
-void ed25519_derive_public_key(const private_key_t *sk, public_key_t *pk) {
+void ed25519_derive_public_key(const unsigned char *sk, unsigned char *pk) {
   unsigned char az[64];
   ge_p3 A;
 
-  sha512(az, sk->data, 32);
+  sha512(az, sk, 32);
   az[0] &= 248;
   az[31] &= 63;
   az[31] |= 64;
 
   ge_scalarmult_base(&A, az);
-  ge_p3_tobytes(pk->data, &A);
+  ge_p3_tobytes(pk, &A);
 }
 
-void ed25519_sign(signature_t *sig, const unsigned char *msg,
-                  unsigned long long msglen, const public_key_t *pk,
-                  const private_key_t *sk) {
+void ed25519_sign(unsigned char *sig, const unsigned char *msg,
+                  unsigned long long msglen, const unsigned char *pk,
+                  const unsigned char *sk) {
   unsigned char context[SHA_512_CONTEXT_SIZE];
   unsigned char az[64];
   unsigned char nonce[64];  // r
@@ -34,7 +34,7 @@ void ed25519_sign(signature_t *sig, const unsigned char *msg,
   ge_p3 R;
 
   sha512_init((void *)context);
-  sha512_update((void *)context, sk->data, ed25519_privkey_SIZE);
+  sha512_update((void *)context, sk, ed25519_privkey_SIZE);
   sha512_final((void *)context, az);
   az[0] &= 248;
   az[31] &= 63;
@@ -50,24 +50,24 @@ void ed25519_sign(signature_t *sig, const unsigned char *msg,
 
   sc_reduce(nonce);
   ge_scalarmult_base(&R, nonce);
-  ge_p3_tobytes(sig->data, &R);
+  ge_p3_tobytes(sig, &R);
   /* sig: [32 bytes R | 32 bytes uninit] */
 
   sha512_init((void *)context);
   // first 32 bytes of signature
-  sha512_update((void *)context, /* R */ sig->data, 32);
-  sha512_update((void *)context, /* A */ pk->data, ed25519_pubkey_SIZE);
+  sha512_update((void *)context, /* R */ sig, 32);
+  sha512_update((void *)context, /* A */ pk, ed25519_pubkey_SIZE);
   sha512_update((void *)context, msg, msglen);
   sha512_final((void *)context, hram);
   /* hram: 64-byte H(R,A,m) */
 
   sc_reduce(hram);
-  sc_muladd(sig->data + 32, hram, az, nonce);
+  sc_muladd(sig + 32, hram, az, nonce);
   /* sig: [32 bytes R | 32 bytes S] */
 }
 
-int ed25519_verify(const signature_t *sig, const unsigned char *msg,
-                   unsigned long long msglen, const public_key_t *pk) {
+int ed25519_verify(const unsigned char *sig, const unsigned char *msg,
+                   unsigned long long msglen, const unsigned char *pk) {
   unsigned char context[SHA_512_CONTEXT_SIZE];
   unsigned char pkcopy[32];
   unsigned char rcopy[32];
@@ -76,22 +76,22 @@ int ed25519_verify(const signature_t *sig, const unsigned char *msg,
   ge_p3 A;
   ge_p2 R;
 
-  if (sig->data[63] & 224) goto badsig;
-  if (ge_frombytes_negate_vartime(&A, pk->data) != 0) goto badsig;
+  if (sig[63] & 224) goto badsig;
+  if (ge_frombytes_negate_vartime(&A, pk) != 0) goto badsig;
 
-  memcpy(pkcopy, pk->data, 32);
-  memcpy(rcopy, /* R, first 32 bytes */ sig->data, 32);
+  memcpy(pkcopy, pk, 32);
+  memcpy(rcopy, /* R, first 32 bytes */ sig, 32);
 
   sha512_init((void *)context);
   // first 32 bytes of signature
-  sha512_update((void *)context, /* R */ sig->data, 32);
-  sha512_update((void *)context, /* A */ pk->data, ed25519_pubkey_SIZE);
+  sha512_update((void *)context, /* R */ sig, 32);
+  sha512_update((void *)context, /* A */ pk, ed25519_pubkey_SIZE);
   sha512_update((void *)context, msg, msglen);
   sha512_final((void *)context, hram);
   /* scs: S = nonce + H(R,A,m)a */
 
   sc_reduce(hram);
-  ge_double_scalarmult_vartime(&R, hram, &A, /* S */ sig->data + 32);
+  ge_double_scalarmult_vartime(&R, hram, &A, /* S */ sig + 32);
   ge_tobytes(rcheck, &R);
 
   if (crypto_verify_32(rcopy, rcheck) == 0) {
