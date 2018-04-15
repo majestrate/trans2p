@@ -1,9 +1,0 @@
-ed25519_add_library(sha2_openssl
-    SOURCES
-      sha256.c
-      sha512.c
-    LINK_LIBRARIES
-      ${OPENSSL_CRYPTO_LIBRARY}
-    INCLUDES
-      ${OPENSSL_INCLUDE_DIR}
-    )

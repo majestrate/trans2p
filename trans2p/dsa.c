@@ -38,7 +38,7 @@ BIGNUM * dsap = 0;
 BIGNUM * dsag = 0;
 BIGNUM * dsaq = 0;
 
-static void ensure_dsa(void)
+void ensure_dsa(void)
 {
   if(!dsap)
   {
@@ -92,6 +92,7 @@ void DSA_SIG_get0(const DSA_SIG *sig, const BIGNUM **pr, const BIGNUM **ps)
 
 DSA * new_DSA()
 {
+  ensure_dsa();
   DSA * dsa = DSA_new ();
   DSA_set0_pqg (dsa, BN_dup (dsap), BN_dup (dsaq), BN_dup (dsag));
   DSA_set0_key (dsa, NULL, NULL);
@@ -100,7 +101,6 @@ DSA * new_DSA()
 
 bool i2p_dsa_sign(struct i2p_dsa * dsa, const uint8_t * buf, size_t sz, uint8_t * sigbuf)
 {
-  ensure_dsa();
   DSA * sk = new_DSA();
   DSA_set0_key(sk, BN_bin2bn (dsa->pub, sizeof(dsa->pub), NULL), BN_bin2bn (dsa->priv, sizeof(dsa->priv), NULL));
   DSA_free(sk);
@@ -118,7 +118,6 @@ bool i2p_dsa_sign(struct i2p_dsa * dsa, const uint8_t * buf, size_t sz, uint8_t 
 
 bool i2p_dsa_verify(const uint8_t * pubkey, const uint8_t * buf, size_t sz, const uint8_t * sig)
 {
-  ensure_dsa();
   DSA * pk = new_DSA();
   DSA_set0_key(pk, BN_bin2bn (pubkey, 128, NULL), NULL);
   uint8_t digest[20];

@@ -66,6 +66,8 @@ void i2p_keygen(struct i2p_privkeybuf * priv)
 {
   i2p_eddsa_keygen(&priv->eddsa);
   i2p_elg_keygen(&priv->elg);
+  priv->sigtype = EDDSA_KEYTYPE;
+  priv->enctype = ELG_KEYTYPE;
 }
 
 void i2p_privkey_dest(struct i2p_privkeybuf * priv, struct i2p_dest * pub)
@@ -77,7 +79,7 @@ void i2p_privkey_dest(struct i2p_privkeybuf * priv, struct i2p_dest * pub)
   RAND_bytes(ptr, EDDSA_PADDING_BYTES);
   ptr += EDDSA_PADDING_BYTES;
   pub->sigkey = ptr;
-  memcpy(pub->sigkey, priv->eddsa.pub, 32);
+  memcpy(pub->sigkey, priv->eddsa.key + 32, 32);
   ptr += 32;
 
   pub->cert.type = CERT_KEYCERT;
@@ -113,7 +115,7 @@ size_t i2p_dest_sigsize(struct i2p_privkeybuf * priv)
   switch(priv->sigtype)
   {
   case EDDSA_KEYTYPE:
-    return 32;
+    return 64;
   case DSA_KEYTYPE:
     return 128;
   default:
