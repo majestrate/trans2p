@@ -5,7 +5,6 @@ i2p ip proxy thingydoo with built in dns resolver doohicky and assorted other cr
 requirements:
 
 * c11 compiler
-* c++ 17 compiler (for now)
 * libssl (libressl or openssl)
 * cmake
 
