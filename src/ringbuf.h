@@ -40,6 +40,25 @@ static inline bool ringbuf_append(struct ringbuf * b, uint8_t * ptr, uint16_t sz
   return b->sz >= RINGBUF_BUFF_SZ;
 }
 
+static inline bool ringbuf_pop(struct ringbuf * b, ringbuf_visitor v, void * u)
+{
+  if(b->sz == 0) return false;
+  struct ringbuf_msgbuf * msg;
+  uint16_t sz = b->sz;
+  uint16_t idx = b->idx;
+  while(sz)
+  {
+    if(idx)
+      idx = idx - 1;
+    else
+      idx = RINGBUF_BUFF_SZ - 1;
+    sz--; 
+  }
+  msg = &b->buffs[idx];
+  v(msg->buf, msg->sz, u);
+  b->sz --;
+  return true;
+}
 
 static inline bool ringbuf_flush(struct ringbuf * b, ringbuf_visitor v, void * u)
 {

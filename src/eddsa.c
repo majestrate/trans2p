@@ -6,12 +6,11 @@
 #include "ref10/ge.h"
 #include "ref10/sc.h"
 
-bool i2p_eddsa_sign(struct i2p_eddsa * ed, const uint8_t * buf, size_t sz, uint8_t * sigbuf)
+bool i2p_eddsa_sign(struct i2p_eddsa * ed, const uint8_t * buf, size_t sz, uint8_t * sig)
 {
   uint8_t hram[64];
   uint8_t nonce[64];
   uint8_t az[64];
-  uint8_t sig[64];
   ge_p3 R;
 
   SHA512_CTX ctx;
@@ -39,7 +38,6 @@ bool i2p_eddsa_sign(struct i2p_eddsa * ed, const uint8_t * buf, size_t sz, uint8
 
   sc_reduce(hram);
   sc_muladd(sig+32, hram, az, nonce);
-  memcpy(sigbuf, sig, 64);
   return true;
 }
 

@@ -7,7 +7,6 @@
 
 struct tunif
 {
-  int fd;
   struct ev_event ev;
   struct ringbuf read;
   struct ringbuf write;
@@ -15,7 +14,8 @@ struct tunif
 
 static inline void tunif_init(struct tunif * t, int fd)
 {
-  t->fd = fd;
+  t->ev.fd = fd;
+  t->ev.flags = EV_READ | EV_WRITE;
   ringbuf_init(&t->read);
   ringbuf_init(&t->write);
 }

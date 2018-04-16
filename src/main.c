@@ -180,7 +180,11 @@ void onreqvarls(uint8_t * data, uint32_t sz, struct i2cp_state * st, void * user
   htobe16buf(buf, st->sid);
   buf += 2;
   // 20 bytes revoke
-  memset(buf, 0, 20);
+  if(t->ourdest.sigtype)
+    memset(buf, 0, 20);
+  else
+    memcpy(buf, t->ourdest.sigkey, 20);
+  
   buf += 20;
   // elg privkey
   memcpy(buf, t->lskey.priv, 256);
@@ -221,6 +225,7 @@ void dns_onread(ssize_t sz, struct handler * h)
 
 void i2cp_write(void * impl, uint8_t * ptr, uint32_t sz)
 {
+  // todo: use ringbuf to queue writes so that write doesn't ever block
   struct trans2p * t = (struct trans2p * ) impl;
   int res = write(t->i2cp_fd, ptr, sz);
   if (res == -1) perror("i2cp_write()");
@@ -229,13 +234,14 @@ void i2cp_write(void * impl, uint8_t * ptr, uint32_t sz)
 void tun_ringbuf_write(uint8_t * ptr, uint16_t sz, void * user)
 {
   struct tunif * tun = user;
-  write(tun->fd, ptr, sz);
+  int res = write(tun->ev.fd, ptr, sz);
+  if (res == -1) perror("tun_write()");
 }
 
 void tun_flushwrite(struct handler * h)
 {
   struct tunif * tun = &h->t->tun;
-  ringbuf_flush(&tun->write, &tun_ringbuf_write, tun);
+  ringbuf_pop(&tun->write, &tun_ringbuf_write, tun);
 }
 
 void tick(struct trans2p * t)
@@ -257,12 +263,8 @@ void mainloop(struct trans2p * t)
   printf("mainloop\n");
   do
   {
-    res = api->poll(impl, 10, &ev);
-    if(res == 0)
-    {
-      tick(t);
-    }
-    else if(res > 0)
+    res = api->poll(impl, 0, &ev);
+    if(res > 0)
     {
       h = (struct handler *) ev.ptr;
       if(ev.flags & EV_READ)
@@ -287,6 +289,7 @@ void mainloop(struct trans2p * t)
         }
         while(count > 0);     
       }
+      tick(t);
       if (ev.flags & EV_WRITE)
       {
         if(h->write)
@@ -421,7 +424,7 @@ int main(int argc, char * argv[])
   }
   dns_state_init(&t.dns);
 
-  addr_mapper_init(&t.dns.addr, t.config.tun.addr, t.config.tun.netmask);
+  addr_mapper_init(&t.dns.addr, &t.config.tun.addr, &t.config.tun.netmask);
   
   i2p_crypto_init();
   i2cp_state_init(&t.i2cp, &i2cp_write, &t);
@@ -449,11 +452,9 @@ int main(int argc, char * argv[])
       printf("failed to open %s\n", t.config.tun.ifname);
       return 1;
     }
-    t.tun.ev.fd = tunfd;
     t.tun.ev.ptr = &tun_handler;
-    t.tun.ev.flags = EV_READ | EV_WRITE;
-    api->add(t.impl,  &t.tun.ev);
     tunif_init(&t.tun, tunfd);
+    api->add(t.impl,  &t.tun.ev);
   }
   else
     printf("tun interface disabled\n");
